@@ -1,6 +1,8 @@
-use near_sdk_sim::{UserAccount, ContractAccount, runtime::GenesisConfig, init_simulator, deploy, to_yocto};
-use nft_contract::{NftContract, common::TokenMetadata};
+use near_sdk_sim::{
+    deploy, init_simulator, runtime::GenesisConfig, to_yocto, ContractAccount, UserAccount,
+};
 use nft_bid_market::MarketContract;
+use nft_contract::{common::TokenMetadata, NftContract};
 near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     MARKET_WASM_BYTES => "../res/nft_bid_market.wasm",
     NFT_WASM_BYTES => "../res/nft_contract.wasm",

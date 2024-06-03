@@ -1,7 +1,6 @@
-use near_sdk::serde_json::json;
-use crate::*;
 use crate::bid::Origins;
-
+use crate::*;
+use near_sdk::serde_json::json;
 
 pub trait NonFungibleTokenApprovalReceiver {
     fn nft_on_approve(
@@ -85,13 +84,8 @@ impl NonFungibleTokenApprovalReceiver for Market {
         let args: ArgsKind = near_sdk::serde_json::from_str(&msg).expect("Not valid args");
         match args {
             ArgsKind::Sale(sale_args) => {
-                let sale_json = self.start_sale(
-                    sale_args,
-                    token_id,
-                    owner_id,
-                    approval_id,
-                    nft_contract_id,
-                );
+                let sale_json =
+                    self.start_sale(sale_args, token_id, owner_id, approval_id, nft_contract_id);
                 env::log_str(&near_sdk::serde_json::to_string(&sale_json).unwrap());
             }
             ArgsKind::Auction(auction_args) => {
@@ -102,10 +96,13 @@ impl NonFungibleTokenApprovalReceiver for Market {
                     approval_id,
                     nft_contract_id,
                 );
-                env::log_str(&json!({
-                    "auction_id": U128(id),
-                    "auction_json": auction_json
-                }).to_string())
+                env::log_str(
+                    &json!({
+                        "auction_id": U128(id),
+                        "auction_json": auction_json
+                    })
+                    .to_string(),
+                )
             }
         }
     }
@@ -135,7 +132,7 @@ impl NonFungibleTokenApprovalReceiver for Market {
             STORAGE_PER_SALE
         );
 
-        for (ft_token_id, _price) in token_series.sale_conditions.clone() {
+        for (ft_token_id, _price) in token_series.&sale_conditions {
             if !self.market.ft_token_ids.contains(&ft_token_id) {
                 env::panic_str(&format!(
                     "Token {} not supported by this market",

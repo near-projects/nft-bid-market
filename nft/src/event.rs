@@ -48,7 +48,11 @@ impl<'a> NftMintData<'a> {
         token_ids: Vec<&'a str>,
         memo: Option<&'a str>,
     ) -> NftMintData<'a> {
-        Self { owner_id: owner_id.as_str(), token_ids, memo }
+        Self {
+            owner_id: owner_id.as_str(),
+            token_ids,
+            memo,
+        }
     }
 }
 
@@ -116,7 +120,10 @@ impl<'a> NftBurnData<'a> {
 
 impl<'a> NearEvent<'a> {
     pub fn new_171(version: &'static str, event_kind: Nep171EventKind<'a>) -> Self {
-        NearEvent::Nep171(Nep171Event { version, event_kind })
+        NearEvent::Nep171(Nep171Event {
+            version,
+            event_kind,
+        })
     }
 
     pub fn new_171_v1(event_kind: Nep171EventKind<'a>) -> Self {
@@ -211,7 +218,7 @@ mod tests {
         let owner_id = &bob();
         let token_ids = vec!["0", "1"];
         let log = NearEvent::nft_burn(vec![
-            NftBurnData::new(&alice(), vec!["2", "3"], Some(&bob()), Some(&"has memo".to_string())),
+            NftBurnData::new(&alice(), vec!["2", "3"], Some(&bob()), Some("has memo")),
             NftBurnData::new(owner_id, token_ids, None, None),
         ])
         .to_json_string();

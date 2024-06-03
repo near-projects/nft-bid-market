@@ -12,14 +12,16 @@ mod token;
 mod hack; // TODO: remove
 
 use common::*;
+pub use near_contract_standards::non_fungible_token::hash_account_id;
 
-use crate::sale::{Sale, SaleConditions, TokenType,
-    ContractAndTokenId, FungibleTokenId};
 use crate::auction::Auction;
-pub use crate::sale::{SaleJson, BID_HISTORY_LENGTH_DEFAULT};
-pub use crate::market_core::{ArgsKind, SaleArgs, AuctionArgs};
 pub use crate::auction::{AuctionJson, EXTENSION_DURATION};
+pub use crate::bid::{Bid, BidAccount, BidId, BidsForContractAndTokenId};
 pub use crate::fee::{Fees, PAYOUT_TOTAL_VALUE, PROTOCOL_FEE};
+pub use crate::market_core::{ArgsKind, AuctionArgs, SaleArgs};
+use crate::sale::{ContractAndTokenId, FungibleTokenId, Sale, SaleConditions, TokenType};
+pub use crate::sale::{SaleJson, BID_HISTORY_LENGTH_DEFAULT};
+//use std::collections::HashMap;
 
 const STORAGE_PER_SALE: u128 = 1000 * STORAGE_PRICE_PER_BYTE;
 
@@ -28,16 +30,38 @@ const STORAGE_PER_SALE: u128 = 1000 * STORAGE_PRICE_PER_BYTE;
 pub enum StorageKey {
     Sales,
     ByOwnerId,
-    ByOwnerIdInner { account_id_hash: CryptoHash },
+    ByOwnerIdInner {
+        account_id_hash: CryptoHash,
+    },
     ByNFTContractId,
-    ByNFTContractIdInner { account_id_hash: CryptoHash },
+    ByNFTContractIdInner {
+        account_id_hash: CryptoHash,
+    },
     ByNFTTokenType,
-    ByNFTTokenTypeInner { token_type_hash: CryptoHash },
+    ByNFTTokenTypeInner {
+        token_type_hash: CryptoHash,
+    },
     FTTokenIds,
     StorageDeposits,
-    OriginFees,
+    BidsByIndex,
+    Bids,
+    BidsForContractAndOwner {
+        contract_and_token_hash: CryptoHash,
+    },
+    BidsForContractAndOwnerInner {
+        contract_and_token_hash: CryptoHash,
+        balance: [u8; 16],
+    },
+    BidsByOwner,
+    BidsByOwnerInner {
+        account_id_hash: CryptoHash,
+    },
+    BidAccounts,
+    BidAccountsInner {
+        account_id_hash: CryptoHash,
+    },
     Auctions,
-    AuctionId,
+    NFTTokenContracts,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -49,8 +73,14 @@ pub struct MarketSales {
     pub by_nft_token_type: LookupMap<String, UnorderedSet<ContractAndTokenId>>,
     pub ft_token_ids: UnorderedSet<FungibleTokenId>,
     pub storage_deposits: LookupMap<AccountId, Balance>,
-    pub bid_history_length: u8,
 
+    pub bids_by_index: LookupMap<BidId, Bid>,
+    pub bids: LookupMap<ContractAndTokenId, BidsForContractAndTokenId>,
+    pub bids_by_owner:
+        LookupMap<AccountId, UnorderedMap<ContractAndTokenId, (FungibleTokenId, Balance, BidId)>>,
+    pub next_bid_id: BidId,
+
+    pub bid_accounts: LookupMap<AccountId, BidAccount>,
     pub auctions: UnorderedMap<u128, Auction>,
     pub next_auction_id: u128,
 }
@@ -66,7 +96,7 @@ pub struct Market {
 impl Market {
     #[init]
     pub fn new(nft_ids: Vec<AccountId>, owner_id: AccountId) -> Self {
-        let mut non_fungible_token_account_ids = LookupSet::new(b"n");
+        let mut non_fungible_token_account_ids = LookupSet::new(StorageKey::NFTTokenContracts);
         non_fungible_token_account_ids.extend(nft_ids);
         let mut tokens = UnorderedSet::new(StorageKey::FTTokenIds);
         tokens.insert(&AccountId::new_unchecked("near".to_owned()));
@@ -78,7 +108,14 @@ impl Market {
             by_nft_token_type: LookupMap::new(StorageKey::ByNFTTokenType),
             ft_token_ids: tokens,
             storage_deposits: LookupMap::new(StorageKey::StorageDeposits),
-            bid_history_length: BID_HISTORY_LENGTH_DEFAULT,
+
+            bids_by_index: LookupMap::new(StorageKey::BidsByIndex),
+            bids: LookupMap::new(StorageKey::Bids),
+            bids_by_owner: LookupMap::new(StorageKey::BidsByOwner),
+            next_bid_id: 0,
+
+            bid_accounts: LookupMap::new(StorageKey::BidAccounts),
+            //bid_history_length: BID_HISTORY_LENGTH_DEFAULT,
             auctions: UnorderedMap::new(StorageKey::Auctions),
             next_auction_id: 0,
         };
@@ -127,5 +164,67 @@ impl Market {
 
     pub fn storage_amount(&self) -> U128 {
         U128(STORAGE_PER_SALE)
+    }
+
+    #[payable]
+    pub fn bid_withdraw(&mut self, amount: Option<U128>, ft_token_id: Option<AccountId>) {
+        assert_one_yocto();
+        let owner_id = env::predecessor_account_id();
+        let balance = self.view_deposit(ft_token_id.clone());
+        let amount = amount.map(|b| b.0).unwrap_or(balance);
+        assert!(amount <= balance, "Can't withdraw more than you have");
+        let bid_ft = match ft_token_id {
+            Some(ft) => ft,
+            None => "near".parse().unwrap(),
+        };
+        self.refund_bid(bid_ft.clone(), owner_id.clone(), amount.into());
+        self.market
+            .bid_accounts
+            .get(&owner_id)
+            .expect("Bid account not found")
+            .total_balance
+            .insert(&bid_ft, &(balance - amount));
+    }
+
+    #[payable]
+    pub fn bid_deposit(&mut self, account_id: Option<AccountId>, ft_token_id: Option<AccountId>) {
+        let owner_id = account_id.unwrap_or_else(env::predecessor_account_id);
+        match ft_token_id {
+            None => {
+                let bid_ft = AccountId::new_unchecked("near".to_string());
+                let added_amount = env::attached_deposit();
+                // let mut initial_map = LookupMap::new(b"b");
+                // initial_map.insert(&bid_ft, &0).unwrap();
+                // let initial_acc = BidAccount {
+                //     total_balance: initial_map,
+                // };
+                let mut bid_account =
+                    self.market
+                        .bid_accounts
+                        .get(&owner_id)
+                        .unwrap_or_else(|| BidAccount {
+                            total_balance: LookupMap::new(StorageKey::BidAccountsInner {
+                                account_id_hash: hash_account_id(&owner_id),
+                            }),
+                        });
+                let previous_balance = bid_account.total_balance.get(&bid_ft).unwrap_or_default();
+                bid_account
+                    .total_balance
+                    .insert(&bid_ft, &(previous_balance + added_amount));
+                self.market.bid_accounts.insert(&owner_id, &bid_account);
+            }
+            Some(_ft) => (),
+        };
+    }
+
+    pub fn view_deposit(&self, ft_token_id: Option<AccountId>) -> Balance {
+        let ft = ft_token_id.unwrap_or(AccountId::new_unchecked("near".to_string()));
+        self.market
+            .bid_accounts
+            .get(&env::predecessor_account_id())
+            .expect("Bid account not found")
+            .total_balance
+            .get(&ft)
+            .expect("No token")
     }
 }

@@ -59,7 +59,7 @@ Creates an offer to buy NFT. If `attached_deposit` is sufficient, the purchase i
   - panic if origin fee exceeds `ORIGIN_FEE_MAX`
   - a new bid should be added
   - if the number of stored bids exceeds `bid_history_length`, the earliest bid is removed and refunded
-### accept_offer
+### accept_bid
 Accepts the last offer for the particular sale and given `ft_token_id`.
 - Should panic if there is no sale with the given `nft_contract_id` and `token_id`
 - Should panic if the sale is not in progress
@@ -193,14 +193,14 @@ Cancels an auction if it's finished.
 
 ### nft_create_series
 Creates a series.
-- Can only be called by the autorized account (if authorization enabled)
+- Can only be called by the authorized account (if authorization enabled)
 - Panics if the title of the series is not specified
 - Panics if the total royalty payout exceeds 50%
 - Creates a new series with given metadata and royalty
 - Refunds a deposit
 ### nft_mint
 Mints a token from the series.
-- Can only be called by the autorized account (if authorization enabled)
+- Can only be called by the authorized account (if authorization enabled)
 - Panics if there is no series `token_series_id`
 - Panics if called not by the owner of the series or the approved account to mint this specific series
 - Panics if the maximum number of tokens have already been minted
@@ -237,12 +237,12 @@ Payout mapping for the given token, based on 'balance' and royalty
 ### grant
 Gives an approval to mint.
 - Can only be called by the owner
-- Adds a given account to the list of the autorized accounts
+- Adds a given account to the list of the authorized accounts
 - Returns `true` if the new account has been added to the list, `false` otherwise
 ### deny
 Takes back a permission to mint.
 - Can only be called by the owner
-- Removes a given account from the list of the autorized accounts
+- Removes a given account from the list of the authorized accounts
 - Returns `true` if the account has been removed from the list, `false` if it hadn't been in the list
 ### set_private_minting
 Turns on and off the private minting.

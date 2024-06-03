@@ -1,21 +1,23 @@
+use anyhow::Result;
+use serde_json::json;
 use std::collections::HashMap;
 
+use crate::utils::init_market;
 use near_units::parse_near;
 use nft_bid_market::{PAYOUT_TOTAL_VALUE, PROTOCOL_FEE};
-use nft_contract::common::{AccountId, U128};
-
-use crate::utils::init_market;
+use nft_contract::common::U128;
+use workspaces::AccountId;
 
 #[tokio::test]
-async fn price_with_fees() -> anyhow::Result<()> {
-    let worker = workspaces::sandbox();
+async fn price_with_fees() -> Result<()> {
+    let worker = workspaces::sandbox().await?;
     let market = init_market(&worker, worker.root_account().id(), vec![]).await?;
     let price_without_fees = U128(23456788765);
     let price_with_fees: U128 = market
         .view(
             &worker,
             "price_with_fees",
-            serde_json::json!({ "price": price_without_fees })
+            json!({ "price": price_without_fees })
                 .to_string()
                 .into_bytes(),
         )
@@ -40,7 +42,7 @@ async fn price_with_fees() -> anyhow::Result<()> {
         .view(
             &worker,
             "price_with_fees",
-            serde_json::json!({
+            json!({
                 "price": price_without_fees,
                 "origins": origins
             })

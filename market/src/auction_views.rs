@@ -62,8 +62,7 @@ impl Market {
         auction.bid.map(|bid| {
             {
                 let total_origins = fee::calculate_origins(&bid.origins);
-                let actual_amount = fee::calculate_actual_amount(bid.price.0, total_origins);
-                actual_amount
+                fee::calculate_actual_amount(bid.price.0, total_origins)
             }
             .into()
         })

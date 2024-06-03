@@ -4,7 +4,10 @@ use crate::*;
 #[near_bindgen]
 impl Nft {
     pub fn nft_get_series(&self, token_series_id: TokenSeriesId) -> TokenSeriesJson {
-        let token_series = self.token_series_by_id.get(&token_series_id).expect("no series");
+        let token_series = self
+            .token_series_by_id
+            .get(&token_series_id)
+            .expect("no series");
         TokenSeriesJson {
             metadata: token_series.metadata,
             owner_id: token_series.owner_id,

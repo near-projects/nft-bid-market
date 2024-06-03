@@ -1,13 +1,14 @@
 #![cfg(test)]
 
-mod utils;
-mod sale;
-mod nft;
 mod auction;
-mod bid;
-mod market;
-mod permissions;
 mod auction_views;
+mod bid;
+mod fee;
+mod market;
+mod nft;
+mod permissions;
+mod sale;
 mod sale_views;
 mod series_views;
-mod fee;
+mod transaction_status;
+mod utils;

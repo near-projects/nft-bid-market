@@ -1,4 +1,3 @@
-
 use near_contract_standards::non_fungible_token::metadata::TokenMetadata;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::AccountId;
